@@ -164,7 +164,7 @@ def parsing_data(session, people, country, city, datein, dateout, offset):
 
                     services_offered['value'] = [serv.text.strip() for serv in services.findAll("li")]
                     details['services_offered'].append(services_offered)
-            #-----------------------finish working------------------------------    
+            #-----------------------finish not working------------------------------    
                 
             
             hotel_info['details'] = details
@@ -212,7 +212,7 @@ if __name__ == "__main__":
                         default='')
     parser.add_argument("--city",
                         help='The city to the booking request.',
-                        default='Milano')
+                        default='')
     parser.add_argument("--datein",
                         help='The day for the check-in.',
                         default=today)
