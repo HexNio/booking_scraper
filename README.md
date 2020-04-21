@@ -11,7 +11,7 @@ A python 3.+ booking.com scraper
 launch the script with :
 `$ python3 bkscraper.py --city "New York" `
 
-| First Header  | Second Header | Third Header|
+| Parameter  | Description | Mandatory |
 | ------------- | ------------- |------------- |
 | Content Cell  | Content Cell  | Content Cell |
 | Content Cell  | Content Cell  | Content Cell |

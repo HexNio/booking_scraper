@@ -10,6 +10,8 @@ session = requests.Session()
 today = datetime.datetime.now()
 tomorrow = today + datetime.timedelta(1)
 
+is_verbose = False
+
 REQUEST_HEADER = {"User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.75 Safari/537.36"}
 BOOKING_PREFIX='https://www.booking.com'
 ROW_PER_OFFSET = 25
@@ -37,35 +39,60 @@ def create_url(people, country, city, datein, dateout, offset):
             city=city,
             country=country,
             offset=offset)
-
+    
     return url
 
 
-def process_data(people, country, city, datein, dateout):
+def process_data(people, country, city, datein, dateout, is_detail, limit):
     offset = 0
     threads = []
+    max_offset = 0
 
     starting_url = create_url(people, country, city, datein, dateout, offset)
     #print(starting_url)
+    if(is_verbose):
+        print("[~] Url created:" + "\n" + "\t" + starting_url)
 
     response = session.get(starting_url, headers=REQUEST_HEADER)
     soup = BeautifulSoup(response.text, "lxml")
 
-    max_offset = get_max_offset(soup)
+    if(limit < 0):
+        max_offset = int(get_max_offset(soup))
+    elif(limit > 0):
+        max_off = int(get_max_offset(soup))
+        if (limit > max_off):
+            max_offset = max_off
+        else:
+            max_offset = limit
+    
+    if(is_verbose):
+        print("[~] Page to fetch: " + str(max_offset))
 
-    for i in range(int(max_offset)):
-        offset += 25
-        t = ThreadScraper(session, offset, people, country, city, datein, dateout, parsing_data)
+
+
+
+    if(is_verbose):
+        print("[~] Initializing Threads...")
+
+    if(max_offset > 0):
+        for i in range(int(max_offset)):
+            offset += 25
+            t = ThreadScraper(session, offset, people, country, city, datein, dateout, is_detail, parsing_data)
+            threads.append(t)
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+    else:
+        t = ThreadScraper(session, offset, people, country, city, datein, dateout, is_detail, parsing_data)
         threads.append(t)
-    for t in threads:
         t.start()
-    for t in threads:
         t.join()
 
 
     return ThreadScraper.process_result
 
-def parsing_data(session, people, country, city, datein, dateout, offset):
+def parsing_data(session, people, country, city, datein, dateout, offset, is_detail):
 
     result = []
     data_url = create_url(people, country, city, datein, dateout, offset)
@@ -76,6 +103,11 @@ def parsing_data(session, people, country, city, datein, dateout, offset):
     hotels = soup.select("#hotellist_inner div.sr_item.sr_item_new")
     
     #print(len(soup.select_one("li.bui-pagination__pages")))
+    if(is_verbose):
+        print("[~] Start fetching structures")
+        if(is_detail):
+            print("[~] It will take a while with details")
+
 
     for hotel in hotels:
         hotel_info = {}
@@ -98,76 +130,80 @@ def parsing_data(session, people, country, city, datein, dateout, offset):
             hotel_info['link'] = ''
         else:
             hotel_info['link'] = hotel.select_one(".txp-cta.bui-button.bui-button--primary.sr_cta_button")['href']
-            details = {}
-            detail_page_response = session.get(BOOKING_PREFIX + hotel_info['link'], headers=REQUEST_HEADER)
-            soup_detail = BeautifulSoup(detail_page_response.text, "lxml")
-            
-            if soup_detail.select_one("#hotel_sidebar_static_map") is None:
-                details['latitude'] = ''
-                details['longitude'] = ''
-            else:
-                details['latitude'] = soup_detail.select_one("#hotel_sidebar_static_map")["data-atlas-latlng"].split(",")[0]
-                details['longitude'] = soup_detail.select_one("#hotel_sidebar_static_map")["data-atlas-latlng"].split(",")[1]
-            
-            
-            details['important_facilities'] = []
 
-            if soup_detail.select_one("div.hp_desc_important_facilities.clearfix.hp_desc_important_facilities--bui") is None:
+            if(is_detail):
+                details = {}
+                detail_page_response = session.get(BOOKING_PREFIX + hotel_info['link'], headers=REQUEST_HEADER)
+                soup_detail = BeautifulSoup(detail_page_response.text, "lxml")
+                
+                if soup_detail.select_one("#hotel_sidebar_static_map") is None:
+                    details['latitude'] = ''
+                    details['longitude'] = ''
+                else:
+                    details['latitude'] = soup_detail.select_one("#hotel_sidebar_static_map")["data-atlas-latlng"].split(",")[0]
+                    details['longitude'] = soup_detail.select_one("#hotel_sidebar_static_map")["data-atlas-latlng"].split(",")[1]
+                
+                
                 details['important_facilities'] = []
-            else:
-                
-                details['important_facilities'] = list(dict.fromkeys([service.text.strip() for service in soup_detail.findAll("div", {"class": "important_facility"})]))
-                
-            
-            details['neighborhood_structures'] = []
 
-            
-            if soup_detail.select_one('div.hp-poi-content-container.hp-poi-content-container--column.clearfix') is None:
+                if soup_detail.select_one("div.hp_desc_important_facilities.clearfix.hp_desc_important_facilities--bui") is None:
+                    details['important_facilities'] = []
+                else:
+                    
+                    details['important_facilities'] = list(dict.fromkeys([service.text.strip() for service in soup_detail.findAll("div", {"class": "important_facility"})]))
+                    
+                
                 details['neighborhood_structures'] = []
-            else:
-            
-                for neighborhood in soup_detail.select_one('div.hp-poi-content-container.hp-poi-content-container--column.clearfix').findAll('li', {"class":"bui-list__item"}):
-                    neighborhood_structures = {}
 
-                    if neighborhood.find("div", {"class":"hp-poi-list__description"}).contents[0].strip() is '':
-                        neighborhood_structures['name'] = neighborhood.find("div", {"class":"hp-poi-list__description"}).span.text.strip()
-                    else:
-                        neighborhood_structures['name'] = neighborhood.find("div", {"class":"hp-poi-list__description"}).contents[0].strip()
                 
-                    try:
-                        #print(str(neighborhood.find("div", {"class":"hp-poi-list__description"}).select_one("span.bui-badge.bui-badge--outline").text.strip()))
-                        neighborhood_structures['structure_type'] = neighborhood.find("div", {"class":"hp-poi-list__body"}).select_one("span.bui-badge.bui-badge--outline").text.strip()
-                    except: 
-                        neighborhood_structures['structure_type'] = ''
+                if soup_detail.select_one('div.hp-poi-content-container.hp-poi-content-container--column.clearfix') is None:
+                    details['neighborhood_structures'] = []
+                else:
+                
+                    for neighborhood in soup_detail.select_one('div.hp-poi-content-container.hp-poi-content-container--column.clearfix').findAll('li', {"class":"bui-list__item"}):
+                        neighborhood_structures = {}
 
-                    try:
-                        neighborhood_structures['distance'] = neighborhood.find('span', {"class":"hp-poi-list__distance"}).text.strip()
-                    except:
-                        neighborhood_structures['distance'] = ''
+                        if neighborhood.find("div", {"class":"hp-poi-list__description"}).contents[0].strip() is '':
+                            neighborhood_structures['name'] = neighborhood.find("div", {"class":"hp-poi-list__description"}).span.text.strip()
+                        else:
+                            neighborhood_structures['name'] = neighborhood.find("div", {"class":"hp-poi-list__description"}).contents[0].strip()
+                    
+                        try:
+                            #print(str(neighborhood.find("div", {"class":"hp-poi-list__description"}).select_one("span.bui-badge.bui-badge--outline").text.strip()))
+                            neighborhood_structures['structure_type'] = neighborhood.find("div", {"class":"hp-poi-list__body"}).select_one("span.bui-badge.bui-badge--outline").text.strip()
+                        except: 
+                            neighborhood_structures['structure_type'] = ''
 
-                    details['neighborhood_structures'].append(neighborhood_structures)
-            
+                        try:
+                            neighborhood_structures['distance'] = neighborhood.find('span', {"class":"hp-poi-list__distance"}).text.strip()
+                        except:
+                            neighborhood_structures['distance'] = ''
 
-            details['services_offered'] = []
-
-            #-----------------------not working------------------------------
-            if soup_detail.select_one('div.facilitiesChecklist') is None:
+                        details['neighborhood_structures'].append(neighborhood_structures)
+                
+                #-----------------------not working------------------------------
+                '''
                 details['services_offered'] = []
-            else:
-                #print(list(soup_detail.findAll("div", {"classes": "facilitiesChecklistSection"})))
-                for services in soup_detail.select('div.facilitiesChecklistSection'):
-                    services_offered = {}
-                    services_offered['type'] = services.select_one("h5").text.strip()
-                    #print("-------------------------")
-                    #print([serv.find("span") for serv in services.findAll("li")])
 
-
-                    services_offered['value'] = [serv.text.strip() for serv in services.findAll("li")]
-                    details['services_offered'].append(services_offered)
-            #-----------------------finish not working------------------------------    
                 
-            
-            hotel_info['details'] = details
+                if soup_detail.select_one('div.facilitiesChecklist') is None:
+                    details['services_offered'] = []
+                else:
+                    #print(list(soup_detail.findAll("div", {"classes": "facilitiesChecklistSection"})))
+                    for services in soup_detail.select('div.facilitiesChecklistSection'):
+                        services_offered = {}
+                        services_offered['type'] = services.select_one("h5").text.strip()
+                        #print("-------------------------")
+                        #print([serv.find("span") for serv in services.findAll("li")])
+
+
+                        services_offered['value'] = [serv.text.strip() for serv in services.findAll("li")]
+                        details['services_offered'].append(services_offered)
+                '''
+                #-----------------------finish not working------------------------------    
+                    
+                
+                hotel_info['details'] = details
         
         if hotel.select_one("img.hotel_image") is None:
             hotel_info['thumbnail_image'] = ''
@@ -177,11 +213,14 @@ def parsing_data(session, people, country, city, datein, dateout, offset):
         
         
         result.append(hotel_info)
+    
+    if(is_verbose):
+        print("[~] Retrieving fetched structures")
 
     return result
 
 
-def retrieve_data(people, country, city, datein, dateout, outdir):
+def retrieve_data(people, country, city, datein, dateout, outdir, is_detail, limit):
 
     result = []
     if isinstance(datein, str) or isinstance(dateout, str):
@@ -189,13 +228,19 @@ def retrieve_data(people, country, city, datein, dateout, outdir):
         dateout = datetime.datetime.strptime(dateout, "%Y-%m-%d")
 
 
-    result = process_data(people, country, city, datein, dateout)
+    result = process_data(people, country, city, datein, dateout, is_detail, limit)
 
-    with open(outdir + 'data.json', 'w', encoding='utf-8') as f:
+    if outdir == "":
+        outdir = ("./" + country + city + "_" + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + ".json").replace(" ", "_").replace(":", "_")
+
+    if(is_verbose):
+        print("[~] Saving under the path: " + outdir)
+
+    with open(outdir, 'w', encoding='utf-8') as f:
         json.dump(result, f, ensure_ascii=False, indent=4)
         f.close()
-    print("process finished!") 
-    print("everything was saved under the path: " + outdir + 'data.json')
+
+    print("[~] Process finished!") 
         
 
 
@@ -204,24 +249,41 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--people",
-                        help='Add the number of people to the booking request.',
+                        help='Used to specify the number of people to the booking request.',
                         default=1,
                         type=int)
     parser.add_argument("--country",
-                        help='The country to the booking request.',
+                        help='Used to specify the country to the booking request.',
                         default='')
     parser.add_argument("--city",
-                        help='The city to the booking request.',
+                        help='Used to specify the city to the booking request.',
                         default='')
     parser.add_argument("--datein",
-                        help='The day for the check-in.',
+                        help='Used to specifiy checkin day.',
                         default=today)
     parser.add_argument("--dateout",
-                        help='The day for checkout.',
+                        help='Used to specifiy checkout day.',
                         default=tomorrow)
     parser.add_argument("-o", "--outdir",
-                        help='specify the output dir',
-                        default="./")
-    #parser.print_help()
+                        help='Used to specify the output dir and filename',
+                        default="")
+    parser.add_argument("-d", '--detail', 
+                        default=False,
+                        help='Use it if you want more details in the output',
+                        action='store_true')
+    parser.add_argument("-v", '--verbose', 
+                        default=False,
+                        help='Use it if you want more logs during the process',
+                        action='store_true')
+    parser.add_argument("-l", '--limit', 
+                        default=-1,
+                        type=int,
+                        help='Used to specify the number of page to fetch')
+    
     args = parser.parse_args()
-    retrieve_data(args.people, args.country, args.city, args.datein, args.dateout, args.outdir)
+    if (args.country == '' and args.city == ''):
+        parser.error('No action performed, use the --city or --country param at least')
+    if(args.verbose):
+        is_verbose = True
+    
+    retrieve_data(args.people, args.country, args.city, args.datein, args.dateout, args.outdir, args.detail, args.limit)
