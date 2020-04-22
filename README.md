@@ -34,7 +34,7 @@ launch the script with :
 
 ## ToDo List
 
-- [ ] Scrape the "all facility checklist" in the detail view
+- [x] Scrape the "all facility checklist" offered in the structure divided by groups like the website in the detail view
 
 - [ ] Apply filters in the search
 
