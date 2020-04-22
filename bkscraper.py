@@ -50,31 +50,31 @@ def process_data(people, country, city, datein, dateout, is_detail, limit):
 
     starting_url = create_url(people, country, city, datein, dateout, offset)
     #print(starting_url)
-    if(is_verbose):
+    if is_verbose:
         print("[~] Url created:" + "\n" + "\t" + starting_url)
 
     response = session.get(starting_url, headers=REQUEST_HEADER)
     soup = BeautifulSoup(response.text, "lxml")
 
-    if(limit < 0):
+    if limit < 0:
         max_offset = int(get_max_offset(soup))
-    elif(limit > 0):
+    elif limit > 0:
         max_off = int(get_max_offset(soup))
-        if (limit > max_off):
+        if limit > max_off:
             max_offset = max_off
         else:
             max_offset = limit
     
-    if(is_verbose):
+    if is_verbose:
         print("[~] Page to fetch: " + str(max_offset))
 
 
 
 
-    if(is_verbose):
+    if is_verbose:
         print("[~] Initializing Threads...")
 
-    if(max_offset > 0):
+    if max_offset > 0:
         for i in range(int(max_offset)):
             offset += 25
             t = ThreadScraper(session, offset, people, country, city, datein, dateout, is_detail, parsing_data)
@@ -181,27 +181,31 @@ def parsing_data(session, people, country, city, datein, dateout, offset, is_det
 
                         details['neighborhood_structures'].append(neighborhood_structures)
                 
-                #-----------------------not working------------------------------
-                '''
+
                 details['services_offered'] = []
 
-                
                 if soup_detail.select_one('div.facilitiesChecklist') is None:
                     details['services_offered'] = []
                 else:
-                    #print(list(soup_detail.findAll("div", {"classes": "facilitiesChecklistSection"})))
-                    for services in soup_detail.select('div.facilitiesChecklistSection'):
-                        services_offered = {}
-                        services_offered['type'] = services.select_one("h5").text.strip()
-                        #print("-------------------------")
-                        #print([serv.find("span") for serv in services.findAll("li")])
-
-
-                        services_offered['value'] = [serv.text.strip() for serv in services.findAll("li")]
-                        details['services_offered'].append(services_offered)
-                '''
-                #-----------------------finish not working------------------------------    
                     
+                    for services in soup_detail.findAll("div", class_="facilitiesChecklistSection"):
+
+                        services_offered = {}
+                        services_offered['type'] = services.find("h5").text.strip()
+                        
+                        services_offered['value'] = []
+                        for checks in services.findAll("li"):
+                            
+                            if checks.find("p") is not None:
+                                services_offered['value'].append(checks.findNext("p").text.strip().replace("\n", " ").replace("\r", " ").replace("  ", " "))
+
+                            elif checks.find("span") is not None:
+                                services_offered['value'].append(checks.findNext("span").text.strip())
+                            else:
+                                services_offered['value'].append(checks.text.strip())
+
+
+                        details['services_offered'].append(services_offered)
                 
                 hotel_info['details'] = details
         
@@ -214,8 +218,10 @@ def parsing_data(session, people, country, city, datein, dateout, offset, is_det
         
         result.append(hotel_info)
     
-    if(is_verbose):
+    if is_verbose:
         print("[~] Retrieving fetched structures")
+    
+    session.close()
 
     return result
 
@@ -233,7 +239,7 @@ def retrieve_data(people, country, city, datein, dateout, outdir, is_detail, lim
     if outdir == "":
         outdir = ("./" + country + city + "_" + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + ".json").replace(" ", "_").replace(":", "_")
 
-    if(is_verbose):
+    if is_verbose:
         print("[~] Saving under the path: " + outdir)
 
     with open(outdir, 'w', encoding='utf-8') as f:
@@ -281,9 +287,9 @@ if __name__ == "__main__":
                         help='Used to specify the number of page to fetch')
     
     args = parser.parse_args()
-    if (args.country == '' and args.city == ''):
+    if args.country == '' and args.city == '':
         parser.error('No action performed, use the --city or --country param at least')
-    if(args.verbose):
+    if args.verbose:
         is_verbose = True
     
     retrieve_data(args.people, args.country, args.city, args.datein, args.dateout, args.outdir, args.detail, args.limit)
