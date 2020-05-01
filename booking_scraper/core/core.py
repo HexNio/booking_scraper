@@ -2,7 +2,10 @@ from bs4 import BeautifulSoup
 
 
 def get_hotel_name(hotel):
-    return hotel.select_one("span.sr-hotel__name").text.strip()
+    if hotel.select_one("span.sr-hotel__name") is None:
+        return ''
+    else:
+        return hotel.select_one("span.sr-hotel__name").text.strip()
 
 def get_hotel_score(hotel):
     if hotel.select_one("div.bui-review-score__badge") is None:

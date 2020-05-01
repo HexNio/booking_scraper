@@ -4,8 +4,8 @@ from bs4 import BeautifulSoup
 import datetime
 import sys
 import json
-from core.ThreadScraper import ThreadScraper
-from core import core
+from .core.ThreadScraper import ThreadScraper
+from .core import core
 
 session = requests.Session()
 today = datetime.datetime.now()
@@ -147,6 +147,32 @@ def parsing_data(session, people, country, city, datein, dateout, offset, is_det
         print("[~] Retrieving fetched structures")
 
     session.close()
+
+    return result
+
+
+def get_result(**kwargs):
+    result = []
+    today = datetime.datetime.now()
+    tomorrow = today + datetime.timedelta(1)
+
+    people = kwargs.get('people', 1)
+    country = kwargs.get('country', None)
+    city = kwargs.get('city', None)
+    datein = kwargs.get('datein', today)
+    dateout = kwargs.get('datein', tomorrow)
+    is_detail = kwargs.get('detail', False)
+    limit = kwargs.get('limit', -1)
+
+    if city == None and country == None:
+        raise Exception('set the \"city\" or \"country\" param at least')
+
+
+    if isinstance(datein, str) or isinstance(dateout, str):
+        datein = datetime.datetime.strptime(datein, "%Y-%m-%d")
+        dateout = datetime.datetime.strptime(dateout, "%Y-%m-%d")
+
+    result = process_data(people, country, city, datein, dateout, is_detail, limit)
 
     return result
 
