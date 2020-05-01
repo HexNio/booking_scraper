@@ -70,7 +70,7 @@ with open("output.json", 'w', encoding='utf-8') as f:
     json.dump(result, f, ensure_ascii=False, indent=4)
     f.close()
 ```
-## Public
+## Public
 
 This script was first featured on Reddit at /r/learnpython - [see here](https://www.reddit.com/r/learnpython/comments/g60qui/my_first_python_project/) for the thread. I’ve finally decided to release the script.
 
