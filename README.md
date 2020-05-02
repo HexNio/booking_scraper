@@ -1,4 +1,7 @@
 # booking_scraper
+[![PyPI version shields.io](https://img.shields.io/pypi/v/booking-scraper.svg)](https://pypi.org/project/booking-scraper/)
+[![made-with-python](https://img.shields.io/badge/Made%20with-Python-1f425f.svg)](https://www.python.org/)
+
 
 I made this python 3.+ to prove that is possible to scrape complex websites with tons of data like booking.com, to study the Beautifulsoup module and to have fun programming.
 
@@ -58,7 +61,7 @@ it use the same logic as the bash execution mode and the available params are:
 If either city or country param is not setted the script will rise an Exception. 
 
 ### Code Example
-```
+```python
 import json
 from booking_scraper import bkscraper
 
