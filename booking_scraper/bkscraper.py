@@ -160,7 +160,7 @@ def get_result(**kwargs):
     country = kwargs.get('country', None)
     city = kwargs.get('city', None)
     datein = kwargs.get('datein', today)
-    dateout = kwargs.get('datein', tomorrow)
+    dateout = kwargs.get('dateout', tomorrow)
     is_detail = kwargs.get('detail', False)
     limit = kwargs.get('limit', -1)
 
